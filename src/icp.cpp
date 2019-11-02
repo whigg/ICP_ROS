@@ -4,16 +4,16 @@
 #include "icp_cpp/icp.h"
 #include <numeric>
 
-IterClosestPoint::IterClosestPoint(int m_it):
-max_iters(m_it)
-{
+ICP::ICP(int m_it)
 
+{
+  max_iters = m_it;
   indices = {};
   dists = {};
 
 }
 
-Eigen::MatrixXd IterClosestPoint::best_fit_transform(const Eigen::MatrixXd &pointcloud_A, const Eigen::MatrixXd &pointcloud_B)
+Eigen::MatrixXd ICP::best_fit_transform(const Eigen::MatrixXd &pointcloud_A, const Eigen::MatrixXd &pointcloud_B)
 {
   Eigen::MatrixXd hg_T = Eigen::MatrixXd::Identity(4,4),shifted_A = pointcloud_A, shifted_B = pointcloud_B;
   Eigen::Vector3d cent_A(0,0,0), cent_B(0,0,0);
@@ -37,6 +37,7 @@ Eigen::MatrixXd IterClosestPoint::best_fit_transform(const Eigen::MatrixXd &poin
 
   Eigen::MatrixXd H = shifted_A.transpose()*shifted_B;
 
+
   Eigen::MatrixXd U;
   Eigen::VectorXd S;
   Eigen::MatrixXd V;
@@ -51,14 +52,18 @@ Eigen::MatrixXd IterClosestPoint::best_fit_transform(const Eigen::MatrixXd &poin
   V = SVD.matrixV();
   Vt = V.transpose();
 
+
   rot_matrix = Vt.transpose()*U.transpose();
 
   if (rot_matrix.determinant() < 0)
   {
-    Vt.block<1,3>(2,0) *=-1;
-    rot_matrix = Vt.transpose()*U.transpose();
-  }
 
+    Vt.block<1,3>(2,0) *=-1;
+
+    rot_matrix = Vt.transpose()*U.transpose();
+
+
+  }
 
   trans_vector = cent_B - rot_matrix * cent_A;
 
@@ -69,12 +74,12 @@ Eigen::MatrixXd IterClosestPoint::best_fit_transform(const Eigen::MatrixXd &poin
   return hg_T;
 }
 
-float IterClosestPoint::euc_dist(const Eigen::Vector3d &pt_a, const Eigen::Vector3d &pt_b)
+float ICP::euc_dist(const Eigen::Vector3d &pt_a, const Eigen::Vector3d &pt_b)
 {
   return sqrt(pow(pt_a[0]-pt_b[0], 2) + pow(pt_a[1]-pt_b[1], 2) + pow(pt_a[2]-pt_b[2], 2) );
 }
 
-void IterClosestPoint::calc_closest_neighbors(const Eigen::MatrixXd &src, const Eigen::MatrixXd &dst)
+void ICP::calc_closest_neighbors(const Eigen::MatrixXd &src, const Eigen::MatrixXd &dst)
 {
   int num_rows_src = src.rows(), num_rows_dst = dst.rows();
 
@@ -111,13 +116,14 @@ void IterClosestPoint::calc_closest_neighbors(const Eigen::MatrixXd &src, const 
 }
 
 
-void IterClosestPoint::run_scan_matcher(const Eigen::MatrixXd &pointcloud_A, const Eigen::MatrixXd &pointcloud_B, int tolerance)
+void ICP::run_scan_matcher(const Eigen::MatrixXd &pointcloud_A, const Eigen::MatrixXd &pointcloud_B, int tolerance)
 {
 
   int num_rows = pointcloud_A.rows();
-  Eigen::MatrixXd hg_src = Eigen::MatrixXd(3+1, num_rows);
-  Eigen::MatrixXd src_3d = Eigen::MatrixXd(3, num_rows);
-  Eigen::MatrixXd hg_dst = Eigen::MatrixXd(3+1, num_rows);
+
+  Eigen::MatrixXd hg_src = Eigen::MatrixXd::Ones(3+1, num_rows);
+  src_3d = Eigen::MatrixXd::Ones(3, num_rows);
+  Eigen::MatrixXd hg_dst = Eigen::MatrixXd::Ones(3+1, num_rows);
 
   Eigen::MatrixXd closest_pts_in_dst = Eigen::MatrixXd::Ones(3,num_rows);
 
@@ -130,18 +136,19 @@ void IterClosestPoint::run_scan_matcher(const Eigen::MatrixXd &pointcloud_A, con
   }
 
 
+
   double prev_error = 0.0;
   double mean_error = 0.0;
 
   for (iters = 0; iters < max_iters; iters++)
   {
-
     calc_closest_neighbors(src_3d.transpose(), pointcloud_B);
 
     for (int j = 0; j < num_rows; j++)
       closest_pts_in_dst.block<3,1>(0,j) = hg_dst.block<3,1>(0,indices[j]);
 
     transform_matr = best_fit_transform(src_3d.transpose(), closest_pts_in_dst.transpose());
+
 
     hg_src = transform_matr*hg_src;
 
@@ -159,5 +166,6 @@ void IterClosestPoint::run_scan_matcher(const Eigen::MatrixXd &pointcloud_A, con
     iters++;
 
   }
+  std::cout<<"\n \n Calculating final transform..."<<std::endl;
   transform_matr = best_fit_transform(pointcloud_A, src_3d.transpose());
 }
