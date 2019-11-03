@@ -13,15 +13,13 @@
 #include "ros/ros.h"
 #include <cmath>
 
-
 ScanMatcherNode::ScanMatcherNode(ros::NodeHandle &n)
 :icp(ICP(100))
 {
   has_previous_scan = false;
-
-  aligned_scan_publisher = n.advertise<sensor_msgs::PointCloud2>("aligned_scan", 1000);
+  prev_scan_publisher = n.advertise<sensor_msgs::PointCloud2>("prev_scan", 1000);
+  curr_scan_publisher = n.advertise<sensor_msgs::PointCloud2>("curr_scan", 1000);
 }
-
 
 Eigen::MatrixXd ScanMatcherNode::convert_input_scan(const sensor_msgs::LaserScan::ConstPtr& input_scan)
 {
@@ -98,24 +96,27 @@ sensor_msgs::PointCloud2 ScanMatcherNode::convert_output_cloud(const Eigen::Matr
 
 
 
-void ScanMatcherNode::publish_transform(const sensor_msgs::PointCloud2 &out_pointcloud)
+void ScanMatcherNode::publish_transform(const sensor_msgs::PointCloud2 &prev_scan, const sensor_msgs::PointCloud2 &curr_scan)
 {
-  aligned_scan_publisher.publish(out_pointcloud);
+  prev_scan_publisher.publish(prev_scan);
+  curr_scan_publisher.publish(curr_scan);
 }
 
 void ScanMatcherNode::process_scan_match(const sensor_msgs::LaserScan::ConstPtr& input_scan)
 {
+
+
   Eigen::MatrixXd current_scan = convert_input_scan(input_scan);
-  std::cout<<"\n Converted new input scan to matrix  ("<<current_scan.rows()<<", "<<current_scan.cols()<<")\n \n";
 
   if (has_previous_scan)
   {
+
     icp.run_scan_matcher(previous_scan, current_scan);
     Eigen::Matrix4d transform = icp.get_transformation();
     int last_iters = icp.get_last_iterations();
-    std::vector<double> dists = icp.get_last_distances();
 
-    std::cout<<"Transform: \n \n "<< transform<<std::endl;
+    std::cout<<"Transform found after "<<last_iters<< " iterations: \n \n "<< transform<<std::endl;
+
 
   }
   else
@@ -124,9 +125,11 @@ void ScanMatcherNode::process_scan_match(const sensor_msgs::LaserScan::ConstPtr&
     has_previous_scan = true;
   }
 
-  sensor_msgs::PointCloud2 out_pc = convert_output_cloud(icp.get_transformed_pointcloud().transpose());
+  sensor_msgs::PointCloud2 curr_scan_pc = convert_output_cloud(icp.get_transformed_pointcloud().transpose());
 
-  publish_transform(out_pc);
-
+  publish_transform(prev_scan_pc, curr_scan_pc);
   previous_scan = current_scan;
+  prev_scan_pc = curr_scan_pc;
+
+
 }
