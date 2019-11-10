@@ -4,6 +4,7 @@
 #include <sensor_msgs/point_cloud2_iterator.h>
 #include <iostream>
 #include "icp_cpp/icp.h"
+#include "icp_cpp/utils.h"
 #include "icp_cpp/scanmatcher_node.h"
 #include <string.h>
 #include <eigen3/Eigen/Dense>
@@ -32,8 +33,10 @@ Eigen::MatrixXd ScanMatcherNode::convert_input_scan(const sensor_msgs::LaserScan
 
   sensor_msgs::PointCloud cloud;
   laser_geometry::LaserProjection laser_projector;
-  laser_projector.projectLaser(*input_scan, cloud);
-  Eigen::MatrixXd out_pointcloud_matrix = Eigen::MatrixXd::Zero(360, 3);
+  //laser_projector.projectLaser(*input_scan, cloud);
+  laser_projector.transformLaserScanToPointCloud(frame_id, *input_scan, cloud, tfListener);
+
+  Eigen::MatrixXd out_pointcloud_matrix = Eigen::MatrixXd::Zero(cloud.points.size(), 3);
 
   for (int i = 0; i < cloud.points.size(); i++)
   {
@@ -115,21 +118,29 @@ void ScanMatcherNode::process_scan_match(const sensor_msgs::LaserScan::ConstPtr&
     Eigen::Matrix4d transform = icp.get_transformation();
     int last_iters = icp.get_last_iterations();
 
+    Eigen::Vector3d rpy = matrix_to_rpy(transform, true);
+
+    std::cout<<"Final RPY: "<<rpy.transpose()<<std::endl;
+
     std::cout<<"Transform found after "<<last_iters<< " iterations: \n \n "<< transform<<std::endl;
 
 
+    sensor_msgs::PointCloud2 curr_scan_pc = convert_output_cloud(icp.get_transformed_pointcloud().transpose());
+
+    publish_transform(prev_scan_pc, curr_scan_pc);
+    previous_scan = icp.get_transformed_pointcloud().transpose();
+    prev_scan_pc = curr_scan_pc;
   }
   else
   {
     std::cout<<"First scan, initializing..."<<std::endl;
     has_previous_scan = true;
+    previous_scan = current_scan;
   }
 
-  sensor_msgs::PointCloud2 curr_scan_pc = convert_output_cloud(icp.get_transformed_pointcloud().transpose());
 
-  publish_transform(prev_scan_pc, curr_scan_pc);
-  previous_scan = current_scan;
-  prev_scan_pc = curr_scan_pc;
+
+
 
 
 }
