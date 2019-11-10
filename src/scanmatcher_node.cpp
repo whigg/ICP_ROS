@@ -33,7 +33,6 @@ Eigen::MatrixXd ScanMatcherNode::convert_input_scan(const sensor_msgs::LaserScan
 
   sensor_msgs::PointCloud cloud;
   laser_geometry::LaserProjection laser_projector;
-  //laser_projector.projectLaser(*input_scan, cloud);
   laser_projector.transformLaserScanToPointCloud(frame_id, *input_scan, cloud, tfListener);
 
   Eigen::MatrixXd out_pointcloud_matrix = Eigen::MatrixXd::Zero(cloud.points.size(), 3);
