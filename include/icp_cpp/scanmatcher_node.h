@@ -25,7 +25,6 @@ private:
   int ts_sec;
   int ts_nsec;
   std::string frame_id;
-  tf::TransformListener tfListener;
 
 public:
   ScanMatcherNode(ros::NodeHandle &n);
